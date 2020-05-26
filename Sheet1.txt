@@ -1,0 +1,213 @@
+Private Sub HoldClick(B As CommandButton)
+    If B.Caption = "Hold" Then
+        B.Caption = "Held"
+        B.BackColor = Green
+    Else
+        B.Caption = "Hold"
+        B.BackColor = Gray
+    End If
+End Sub
+Private Sub btnHold1_Click()
+    HoldClick btnHold1
+End Sub
+Private Sub btnHold2_Click()
+    HoldClick btnHold2
+End Sub
+Private Sub btnHold3_Click()
+    HoldClick btnHold3
+End Sub
+Private Sub btnHold4_Click()
+    HoldClick btnHold4
+End Sub
+Private Sub btnHold5_Click()
+    HoldClick btnHold5
+End Sub
+
+Private Sub btnNew_Click()
+    Range("AllDice").Value = ""
+    CurrentRoll = 1
+    btnRoll.Caption = "Roll 1"
+    btnRoll.Enabled = True
+    Dim i As Integer
+    For i = 1 To 2
+        Range("Player" & i & "Top").Value = ""
+        Range("Player" & i & "Bottom").Value = ""
+    Next i
+    CurrentPlayer = 1
+    SetHeading 1
+    ResetHoldButtons
+End Sub
+
+Private Sub btnRoll_Click()
+    Dim i As Integer, ii As Integer, R As Integer
+    Dim Dice As Range
+    Dim V As Variant
+    Dim B As CommandButton
+        
+    Dim Roll As Integer
+    Roll = Split(btnRoll.Caption, " ")(1)
+    Roll = Roll + 1
+    CurrentRoll = Roll
+    If Roll > 3 Then
+        btnRoll.Enabled = False
+        Roll = 3
+    End If
+    btnRoll.Caption = "Roll " & Roll
+    
+    Dim Shuffle As Integer
+    Dim L As Long
+    For Shuffle = 1 To 5
+    
+        For i = 1 To 5
+            Set Dice = Range("Dice" & i)
+            
+            LoadHoldButtons
+            For Each V In HoldButtons
+                Set B = V
+                If Right(B.Name, 1) = i Then
+                    If B.Caption = "Held" Then
+                        GoTo SkipDie
+                    Else
+                        Dice.Value = ""
+                    End If
+                End If
+            Next V
+            
+            R = RandomNumber
+            Select Case R
+                Case 1
+                    Dice.Cells(2, 2).Value = DotSymbol
+                Case 2
+                    Dice.Cells(3, 1).Value = DotSymbol
+                    Dice.Cells(1, 3).Value = DotSymbol
+                Case 3
+                    For ii = 1 To 3
+                        Dice.Cells(ii, 4 - ii).Value = DotSymbol
+                    Next ii
+                Case 4, 5, 6
+                    For ii = 1 To 3 Step 2
+                        Dice.Cells(1, ii).Value = DotSymbol
+                        Dice.Cells(3, ii).Value = DotSymbol
+                    Next ii
+                    If R = 5 Then Dice.Cells(2, 2).Value = DotSymbol
+                    If R = 6 Then
+                        Dice.Cells(2, 1).Value = DotSymbol
+                        Dice.Cells(2, 3).Value = DotSymbol
+                    End If
+            End Select
+SkipDie:
+        Next
+    
+    Next Shuffle
+End Sub
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+    If Target.Cells.Count <> 3 Then Exit Sub
+    If Len(Target.Cells(1, 1).Value) > 0 Then Exit Sub
+    
+    Dim R As Range
+    Dim isTop As Boolean
+    Set R = Intersect(Target, Range("Player1Top"))
+    If R Is Nothing Then
+        Set R = Intersect(Target, Range("Player2Top"))
+        If Not R Is Nothing And CurrentPlayer = 1 Then Exit Sub
+    Else
+        If CurrentPlayer = 2 Then Exit Sub
+    End If
+    If R Is Nothing Then
+        Set R = Intersect(Target, Range("Player1Bottom"))
+        If R Is Nothing Then
+            Set R = Intersect(Target, Range("Player2Bottom"))
+            If Not R Is Nothing And CurrentPlayer = 1 Then Exit Sub
+        Else
+            If CurrentPlayer = 2 Then Exit Sub
+        End If
+        If R Is Nothing Then Exit Sub
+    Else
+        isTop = True
+    End If
+    
+    Dim iDice As Integer
+    Dim DN As Integer
+    For iDice = 1 To 5
+        DN = DiceNumber(iDice)
+        If DN = 0 Then Exit Sub
+    Next iDice
+    
+    Dim S As String
+    If isTop Then
+        S = Cells(Target.Row, Range("TopRow").Column).Value
+    Else
+        S = Cells(Target.Row, Range("BottomRow").Column).Value
+    End If
+    
+    Dim i As Integer
+    Dim Total As Integer
+    Dim Good As Boolean
+    Select Case S
+        Case "Ones": i = 1
+        Case "Twos": i = 2
+        Case "Threes": i = 3
+        Case "Fours": i = 4
+        Case "Fives": i = 5
+        Case "Sixes": i = 6
+        Case "3 of a Kind"
+            For i = 1 To 5
+                If CountOfOneDie(i) >= 3 Then
+                    Good = True
+                    Exit For
+                End If
+            Next i
+            If Good Then Total = DiceSum
+        Case "4 of a Kind"
+            For i = 1 To 5
+                If CountOfOneDie(i) >= 4 Then
+                    Good = True
+                    Exit For
+                End If
+            Next i
+            If Good Then Total = DiceSum
+        Case "Full House"
+            Dim Found2 As Boolean, Found3 As Boolean
+            For i = 1 To 5
+                If CountOfOneDie(i) = 3 Then Found3 = True
+                If CountOfOneDie(i) = 2 Then Found2 = True
+                If Found2 And Found3 Then Exit For
+            Next i
+            If Found2 And Found3 Then Total = 25
+        Case "Small Straight"
+            If LargestStraight >= 4 Then Total = 30
+        Case "Large Straight"
+            If LargestStraight = 5 Then Total = 40
+        Case "5 of a Kind"
+            For i = 1 To 5
+                If CountOfOneDie(i) = 5 Then
+                    Good = True
+                    Exit For
+                End If
+            Next i
+            If Good Then Total = 50
+        Case "Chance"
+            Total = DiceSum
+        Case Else: Exit Sub
+    End Select
+    
+    If isTop Then
+        For iDice = 1 To 5
+            If DiceNumber(iDice) = i Then Total = Total + i
+        Next iDice
+    End If
+    
+    Target.Value = Total
+    
+    If CurrentPlayer = 1 Then CurrentPlayer = 2 Else CurrentPlayer = 1
+    btnRoll.Enabled = True
+    SetHeading CurrentPlayer
+    btnRoll.Caption = "Roll 1"
+    CurrentRoll = 1
+    Range("AllDice").Value = ""
+    ResetHoldButtons
+    
+    If WorksheetFunction.CountA(Range("Scores")) = 26 Then
+        'Game over
+    End If
+End Sub
